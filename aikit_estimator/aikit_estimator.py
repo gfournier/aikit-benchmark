@@ -17,7 +17,10 @@ from aikit.tools import save_pkl
 
 class AikitEstimator(metaclass=abc.ABCMeta):
 
-    def __init__(self, max_model_count=None, max_runtime_seconds=None, n_jobs=1, path='./aikit_workdir'):
+    def __init__(self, max_model_count=None,
+                 max_runtime_seconds=None,
+                 n_jobs=1,
+                 path='./aikit_workdir'):
         self.path = path
         # TODO: move in storage layer
         if not os.path.exists(self.path):
@@ -31,15 +34,16 @@ class AikitEstimator(metaclass=abc.ABCMeta):
     def _run_automl(self, X, y, ):
         def _start_controller():
             try:
-                AutoMlLauncher(self.path).start_controller(max_runtime_seconds=self.max_runtime_seconds,
-                                                           max_model_count=self.max_model_count)
+                AutoMlLauncher(self.path).start_controller(
+                    max_runtime_seconds=self.max_runtime_seconds,
+                    max_model_count=self.max_model_count)
             except Exception as e:
                 print(e)
 
         def _start_worker():
-            logging.getLogger('aikit').info(f"Worker started in process {os.getpid()}.")
-            AutoMlLauncher(self.path).start_worker(max_runtime_seconds=self.max_runtime_seconds,
-                                                   max_model_count=self.max_model_count)
+            logging.getLogger('aikit').info(
+                f"Worker started in process {os.getpid()}.")
+            AutoMlLauncher(self.path).start_worker()
 
         save_pkl((X, y), os.path.join(self.path, 'data.pkl'))
 
@@ -57,7 +61,11 @@ class AikitEstimator(metaclass=abc.ABCMeta):
             futures = [worker.submit(_start_worker)]
 
         # Wait all controller/workers to finish
-        for f in futures + [future1]:
+        time.sleep(5)
+        future1.result()
+        logging.getLogger("aikit").info("Stop all workers...")
+        AutoMlLauncher(self.path).stop_workers()
+        for f in futures:
             f.result()
 
 
@@ -105,5 +113,5 @@ if __name__ == "__main__":
     deactivate_warnings()
     configure_console_logging()
     X, y, *_ = load_dataset(DatasetEnum.titanic)
-    estimator = AikitClassifier(max_runtime_seconds=60)
+    estimator = AikitClassifier(max_model_count=1, path='./automl_workdir')
     estimator.fit(X, y)
